@@ -1,6 +1,7 @@
 package iban;
 
 import java.util.ArrayList;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -13,7 +14,7 @@ public class Iban {
     private String ibanString = null;
     private CountryDesc countryDesc = null;
 
-    private ArrayList<String> errors = new ArrayList<String>();
+    private ArrayList<String> errors = new ArrayList<>();
 
     public Iban(String ibanString) {
         if (ibanString != null) {
@@ -21,11 +22,15 @@ public class Iban {
             try {
                 countryDesc = CountryDesc.valueOf(getCountryCode().toUpperCase());
 
-                if ((countryDesc.getCheckDigistsAllways().length() > 0)&&(countryDesc.getCheckDigistsAllways().compareTo(getCheckDigits())!=0)) {
+                if ((countryDesc.getCheckDigistsAllways().length() > 0) && (countryDesc.getCheckDigistsAllways().compareTo(getCheckDigits()) != 0)) {
                     errors.add("Check digits are invalid");
                 }
             } catch (IllegalArgumentException e) {
                 errors.add("Country is invalid");
+                LOGGER.log(Level.INFO, e.toString(), e);
+            } catch (StringIndexOutOfBoundsException e) {
+                errors.add("Length is invalid");
+                LOGGER.log(Level.INFO, e.toString(), e);
             }
         }
     }

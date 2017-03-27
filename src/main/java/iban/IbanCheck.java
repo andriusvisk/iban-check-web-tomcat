@@ -6,6 +6,7 @@ import javax.json.JsonObjectBuilder;
 import javax.ws.rs.QueryParam;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -17,6 +18,9 @@ public class IbanCheck {
 
     private final BigDecimal BD97 = new BigDecimal(97);
 
+    private final String errorMsgBadBbFormat = "Bad BBAN format";
+    private final String errorMsgCheckDigits = "Check digit test did not passed";
+
     public Iban validate(Iban iban) {
 
         if (iban.getCountryDesc() != null) {
@@ -27,56 +31,65 @@ public class IbanCheck {
 
                 // BBAN format check
 
-                int counter = 0;
-                boolean valid = true;
-                for (String formatas : format) {
-                    String ch = formatas.substring(formatas.length() - 1);
-                    int count = Integer.parseInt(formatas.substring(0, formatas.length() - 1));
-                    String testingInterval = iban.getBban().substring(counter, counter + count);
-                    switch (ch) {
-                        case "a":
-                            if (!isAlphaCharacters(testingInterval)) {
-                                valid = false;
-                            }
-                            counter = counter + count;
+                try {
+                    int counter = 0;
+                    boolean valid = true;
+                    for (String formatas : format) {
+                        String ch = formatas.substring(formatas.length() - 1);
+                        int count = Integer.parseInt(formatas.substring(0, formatas.length() - 1));
+                        String testingInterval = iban.getBban().substring(counter, counter + count);
+                        switch (ch) {
+                            case "a":
+                                if (!isAlphaCharacters(testingInterval)) {
+                                    valid = false;
+                                }
+                                counter = counter + count;
+                                break;
+                            case "n":
+                                if (!isNumericCharacters(testingInterval)) {
+                                    valid = false;
+                                }
+                                counter = counter + count;
+                                break;
+                            case "c":
+                                if (!isMixedCharacters(testingInterval)) {
+                                    valid = false;
+                                }
+                                counter = counter + count;
+                                break;
+                        }
+                        if (!valid) {
+                            iban.addError(errorMsgBadBbFormat);
                             break;
-                        case "n":
-                            if (!isNumericCharacters(testingInterval)) {
-                                valid = false;
-                            }
-                            counter = counter + count;
-                            break;
-                        case "c":
-                            if (!isMixedCharacters(testingInterval)) {
-                                valid = false;
-                            }
-                            counter = counter + count;
-                            break;
+                        }
                     }
-                    if (!valid) {
-                        iban.addError("Bad BBAN format");
-                        break;
-                    }
+                } catch (StringIndexOutOfBoundsException e) {
+                    iban.addError(errorMsgBadBbFormat);
+                    LOGGER.log(Level.SEVERE, e.toString(), e);
                 }
 
                 // Check digits test
+                try {
+                    String rearrangedIban = iban.getBban() + iban.getCountryCode() + iban.getCheckDigits();
 
-                String rearrangedIban = iban.getBban() + iban.getCountryCode() + iban.getCheckDigits();
+                    StringBuilder sb = new StringBuilder(rearrangedIban);
 
-                StringBuilder sb = new StringBuilder(rearrangedIban);
-
-                for (int i = 0; i < sb.length(); i++) {
-                    char ch = sb.charAt(i);
-                    ch = Character.toUpperCase(ch);
-                    if (ch >= 'A' && ch <= 'Z') {
-                        sb.deleteCharAt(i);
-                        String s = Integer.toString(ch - 'A' + 10);
-                        sb.insert(i, s);
+                    for (int i = 0; i < sb.length(); i++) {
+                        char ch = sb.charAt(i);
+                        ch = Character.toUpperCase(ch);
+                        if (ch >= 'A' && ch <= 'Z') {
+                            sb.deleteCharAt(i);
+                            String s = Integer.toString(ch - 'A' + 10);
+                            sb.insert(i, s);
+                        }
                     }
-                }
 
-                if (new BigDecimal(sb.toString()).remainder(BD97).intValue() != 1) {
-                    iban.addError("Check digit test did not passed");
+                    if (new BigDecimal(sb.toString()).remainder(BD97).intValue() != 1) {
+                        iban.addError(errorMsgCheckDigits);
+                    }
+                } catch (StringIndexOutOfBoundsException e) {
+                    iban.addError(errorMsgCheckDigits);
+                    LOGGER.log(Level.INFO, e.toString(), e);
                 }
 
             } else {
@@ -124,9 +137,9 @@ public class IbanCheck {
         }
     }
 
-    private JsonArrayBuilder getErrorsInJson(Iban iban){
+    private JsonArrayBuilder getErrorsInJson(Iban iban) {
         JsonArrayBuilder jsonArray = Json.createArrayBuilder();
-        for(String error:iban.getErrors()){
+        for (String error : iban.getErrors()) {
             jsonArray.add(error);
         }
         return jsonArray;
